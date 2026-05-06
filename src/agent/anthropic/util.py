@@ -1,6 +1,4 @@
 import os
-# from arm_agent.agent_verl import VerlAgent
-# from arm_agent.utils import encode_image_file
 from dotenv import load_dotenv
 import json
 import time
@@ -76,9 +74,8 @@ def _build_eval_prompt(instruction: str, task_config: dict, trajectory: dict, nu
     
 **Your Evaluation Process:**
 1. First, you will be provided with the Task Instruction, Execution Trajectory, and the Last Screenshot of the last step. Please begin your evaluation process based on this information.
-2. You can devise your own verification strategy. One suggested strategy is as follows: First, you can check whether there are any obvious errors or if the task can be directly judged as successful by reviewing the Execution Trajectory and the screenshot from the last step. Next, you may use the `check_screenshot` tool to examine the screenshot of a specific intermediate step to further verify the process. If you find that relying solely on the action contents and screenshots is insufficient to determine whether the task was completed, and you believe it is necessary to directly interact with the GUI environment for verification, you can use the `computer` tool to interact with the computer after `check_screenshot`.
-3. When using the `computer` tool, you can directly check the system status, such as viewing local folders or querying system settings through the terminal to verify whether the system has reached the expected state.
-4. Based on your analysis, determine if the task was completed successfully and provide your final judgment in the specified format. You MUST be extremely cautious and strict when judging a task as successfully executed.
+2. You must verify the task strictly through the following progressive verification protocol, without skipping stages or invoking more expensive tools prematurely. Stage 1 — Static Assessment: first judge only from the Execution Trajectory, the operation history, and the final-step screenshot; do not call any tool at this stage. If these materials already provide clear and sufficient evidence of success or failure, immediately output the final reward and confidence and stop. Stage 2 — Visual Retrospection: only if Stage 1 is inconclusive, selectively call `check_screenshot` on the most relevant intermediate steps indicated by the trajectory to gather visual evidence; after each inspected screenshot, reassess whether the accumulated evidence is sufficient, and if so, output the final reward and confidence and stop. Stage 3 — Proactive Probing: only if Stages 1–2 still cannot establish a reliable judgment, use progressively stronger environment-inspection tools, preferring low-risk/read-only probes such as shell or Python checks before direct GUI interaction with computer; use these tools only to collect missing latent-state evidence necessary for verification. At every stage, early stop as soon as the evidence is sufficient and avoid redundant probing.
+3. Based on your analysis, determine if the task was completed successfully and provide your final judgment in the specified format. You MUST be extremely cautious and strict when judging a task as successfully executed.
 
 **Judgment Criteria:**
 - Was the task objective fully achieved?
@@ -117,149 +114,6 @@ Actions taken:
 **Last Screenshot (step {num_screenshots}):**"""
     
     return prompt
-
-
-# def _build_eval_prompt(instruction: str, task_config: dict, trajectory: dict, num_screenshots: int) -> str:
-#     """构建评估提示"""
-#     # actions_text = "\n".join([
-#     #     f"Step {i+1}: {str(action.get('raw_response', action))}"
-#     #     for i, action in enumerate(trajectory.get("actions", []))
-#     # ])
-#     # # 5. `read_pptx`: Read PowerPoint file details, include - Check slide count, Verify text content, Inspect font properties, Examine table data
-
-#     # summary_prompt = traj_summary_prompt_en.format(actions_text)
-
-#     # actions_summary, chat_history = chat_with_model([{"role": "system", "content": "You are a helpful assistant."}], summary_prompt)
-#     # actions_summary = actions_summary.replace("Summary:", "").strip()
-
-
-#     actions_summary = "\n".join([
-#         f"Step {i+1}: {str(action.get('raw_response', action))}"
-#         for i, action in enumerate(trajectory.get("actions", []))
-#     ])
-    
-#     prompt = f"""You are an expert evaluator for GUI automation tasks. Your job is to determine if the given task was successfully completed based on the execution trajectory.
-
-# **Available Tools:**
-# 1. `check_screenshot`: View specific screenshots from the trajectory (e.g., step_1, step_7,etc). Use this to examine key moments in the execution.
-# 2. `computer`: Interact with the environment by GUI operations to verify the current state (if needed).
-# 3. `execute_python`: Interact with the environment by python code to verify the current state (if needed).
-# 4. `execute_shell`: Interact with the environment by bash code to verify the current state (if needed).
-    
-# **Your Evaluation Process:**
-# 1. First, you will be provided with the Task Instruction, Execution Trajectory, and the Last Screenshots of the last five steps. Please begin your evaluation process based on this information.
-# 2. You can devise your own verification strategy. One suggested strategy is as follows: First, you can check whether there are any obvious errors or if the task can be directly judged as successful by reviewing the Execution Trajectory and the screenshot from the last steps. Next, you may use the `check_screenshot` tool to examine the screenshot of a specific intermediate step to further verify the process. If you find that relying solely on the action contents and screenshots is insufficient to determine whether the task was completed, and you believe it is necessary to directly interact with the GUI environment for verification, you can use the `computer` tool to interact with the computer after `check_screenshot`.
-# 3. When using the `computer` tool, you can directly check the system status, such as viewing local folders or querying system settings through the terminal to verify whether the system has reached the expected state.
-# 4. Based on your analysis, determine if the task was completed successfully and provide your final judgment in the specified format. You MUST be extremely cautious and strict when judging a task as successfully executed.
-
-# **Judgment Criteria:**
-# - Was the task objective fully achieved?
-# - Are there any errors or incomplete steps?
-# - Does the final state match the expected outcome?
-
-# **IMPORTANT: Final Judgment Format**
-# When you have completed your evaluation, you MUST provide your final judgment in the following exact format:
-
-# EVALUATION RESULT:
-# Reasoning: Your detailed reasoning explaining why the task succeeded or failed
-# Status: SUCCESS or FAILURE
-# Confidence: HIGH or MEDIUM or LOW
-
-# Example of correct format:
-# EVALUATION RESULT:
-# Reasoning: The task was completed successfully. All required steps were executed correctly, and the final state matches the expected outcome.
-# Status: SUCCESS
-# Confidence: HIGH
-
-# **IMPORTANT: Tool Usage**
-# ⚠️ **You MUST use the actual tool calling mechanism provided by the API.**
-# ⚠️ **DO NOT write tool calls as text like "[Tool Use - tool_name]" or similar.**
-# ⚠️ **Use the proper function calling format that the system understands.**
-
-# Please begin your evaluation by examining the key screenshots.
-
-# **Task Instruction:**
-# {instruction}
-
-# **Execution Trajectory:**
-# Total steps: {num_screenshots}
-# Actions taken:
-# {actions_summary}
-
-# **Last Screenshots (step {max(num_screenshots-3, 1)}-{num_screenshots}):**"""
-    
-#     return prompt
-
-
-# def _build_eval_prompt(instruction: str, task_config: dict, trajectory: dict, num_screenshots: int) -> str:
-#     """构建评估提示"""
-#     # actions_text = "\n".join([
-#     #     f"Step {i+1}: {str(action.get('raw_response', action))}"
-#     #     for i, action in enumerate(trajectory.get("actions", []))
-#     # ])
-#     # # 5. `read_pptx`: Read PowerPoint file details, include - Check slide count, Verify text content, Inspect font properties, Examine table data
-
-#     # summary_prompt = traj_summary_prompt_en.format(actions_text)
-
-#     # actions_summary, chat_history = chat_with_model([{"role": "system", "content": "You are a helpful assistant."}], summary_prompt)
-#     # actions_summary = actions_summary.replace("Summary:", "").strip()
-
-#     actions_summary = "\n".join([
-#         f"Step {i+1}: {str(action.get('raw_response', action))}"
-#         for i, action in enumerate(trajectory.get("actions", []))
-#     ])
-    
-#     prompt = f"""You are an expert evaluator for GUI automation tasks. Your job is to determine if the given task was successfully completed based on the execution trajectory.
-
-# **Available Tools:**
-# 1. `check_screenshot`: View specific screenshot of one step from the trajectory (e.g., step_1, step_7, etc). Use this to examine key moments in the execution.
-# 2. `computer`: Interact with the environment by GUI operations to verify the current state (if needed).
-# 3. `execute_python`: Interact with the environment by python code to verify the current state (if needed).
-# 4. `execute_shell`: Interact with the environment by bash code to verify the current state (if needed).
-    
-# **Your Evaluation Process:**
-# 1. First, you will be provided with the Task Instruction, Execution Trajectory, and the Last screenshot in the last step. Please begin your evaluation process based on this information.
-# 2. You can devise your own verification strategy. One suggested strategy is as follows: First, you can check whether there are any obvious errors or if the task can be directly judged as successful by reviewing the Execution Trajectory and the screenshot from the last step. Next, you may use the `check_screenshot` tool to examine the screenshot of a specific intermediate step to further verify the process. If you find that relying solely on the action contents and screenshots is insufficient to determine whether the task was completed, and you believe it is necessary to directly interact with the GUI environment for verification, you can use the `computer` tool to interact with the computer after `check_screenshot`.
-# 3. When using the `computer` tool, you can directly check the system status, such as viewing local folders or querying system settings through the terminal to verify whether the system has reached the expected state.
-# 4. Based on your analysis, determine if the task was completed successfully and provide your final judgment in the specified format.
-
-# **Judgment Criteria:**
-# - Was the task objective fully achieved?
-# - Are there any errors or incomplete steps?
-# - Does the final state match the expected outcome?
-
-# **IMPORTANT: Final Judgment Format**
-# When you have completed your evaluation, you MUST provide your final judgment in the following exact format:
-
-# EVALUATION RESULT:
-# Reasoning: Your detailed reasoning explaining why the task succeeded or failed
-# Status: SUCCESS or FAILURE
-# Confidence: HIGH or MEDIUM or LOW
-
-# Example of correct format:
-# EVALUATION RESULT:
-# Reasoning: The task was completed successfully. All required steps were executed correctly, and the final state matches the expected outcome.
-# Status: SUCCESS
-# Confidence: HIGH
-
-# **IMPORTANT: Tool Usage**
-# ⚠️ **You MUST use the actual tool calling mechanism provided by the API.**
-# ⚠️ **DO NOT write tool calls as text like "[Tool Use - tool_name]" or similar.**
-# ⚠️ **Use the proper function calling format that the system understands.**
-
-# Please begin your evaluation by examining the key screenshots.
-
-# **Task Instruction:**
-# {instruction}
-
-# **Execution Trajectory:**
-# Total steps: {num_screenshots}
-# Actions taken:
-# {actions_summary}
-
-# **Last screenshot:**"""
-    
-#     return prompt
 
 def _build_eval_prompt_static(instruction: str, trajectory: dict, num_screenshots: int) -> str:
     """构建评估提示"""
